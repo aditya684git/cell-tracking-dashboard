@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Process Book · Cell-Tracking Models</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/process.css">
+</head>
+<body>
+  <div class="topbar">
+    <a class="back" href="index.html">← Dashboard</a>
+    <nav aria-label="Sections">
+      <a href="#data">1 · Use case &amp; data</a>
+      <a href="#m1">2 · Milestone 1</a>
+      <a href="#m2">3 · Milestone 2</a>
+      <a href="#redesign">4 · One-screen redesign</a>
+      <a href="#d3">5 · D3 build</a>
+      <a href="#insights">6 · Insights</a>
+    </nav>
+  </div>
+
+  <main>
+    <header class="hero">
+      <div class="kicker">Process book · CPSC 4030/6030 Data Visualization · Clemson University</div>
+      <h1>Which cell-tracking model should a biologist trust?</h1>
+      <p class="lede">How we designed a three-view dashboard that compares LAP, Trackastra and LineageMapper against expert
+        ground truth: the sketches, what broke when we used the real data, how we changed the design to fit one screen, and what the finished dashboard shows.</p>
+      <p class="team">Aditya Choudhury (data processing, View 1) · Akshay Mhetre (View 2) · Daniel Shull (View 3)</p>
+      <figure>
+        <a href="index.html"><img src="img/d3_dashboard.png" alt="The finished dashboard: overview dot plot and error bars on the left, sequence heatmap in the middle, link plot and error timeline on the right" width="1440" height="900"></a>
+        <figcaption><b>The final D3 dashboard at 1440×900.</b> All three views are on one screen. It opens on the weakest result in the
+          data: U87 · FLD_2 · LineageMapper, transitions 35–38.</figcaption>
+      </figure>
+    </header>
+
+    <!-- 1 -->
+    <section id="data">
+      <h2><span class="num">1</span>Use case and data</h2>
+      <p class="sub">Use Case 2: choose a model for a new experiment.</p>
+      <p>Our users are biologists who are about to track cells in a new experiment and have to pick one of three tracking models.
+        They need to know which model to trust <em>for their cell line</em>, and what kind of mistakes it will make. The brief lists four tasks, and each view answers at least one:</p>
+      <table>
+        <tr><th>Task from the brief</th><th>Where it is answered</th></tr>
+        <tr><td>Summarize model performance</td><td>View 1, pooled F1 and error types per model</td></tr>
+        <tr><td>Compare performance across cell lines</td><td>View 1 rows, View 2 row groups</td></tr>
+        <tr><td>Compare predictions with ground truth per sequence</td><td>View 2, one cell per sequence × model</td></tr>
+        <tr><td>Locate disagreements and inspect the affected tracks</td><td>View 3, individual links in image coordinates</td></tr>
+      </table>
+
+      <div class="stats">
+        <div class="stat"><b>12</b><span>sequences with predictions (3 per cell line) out of 25 annotated</span></div>
+        <div class="stat"><b>3,866</b><span>frames, 15 minutes apart</span></div>
+        <div class="stat"><b>106,226</b><span>true links, 567 divisions</span></div>
+        <div class="stat"><b>293,657</b><span>predicted links from 3 models</span></div>
+        <div class="stat"><b>330,284</b><span>labelled links in the dashboard</span></div>
+      </div>
+
+      <h4>How a link is judged</h4>
+      <p>A ground-truth link joins a cell to each ID in its <code>CHILD_IDS</code>, so a dividing cell has two links. A predicted link is
+        <code>source_cell_id → target_spot_id</code>. We match every predicted link by ID: it is <b>correct</b> if the ground truth has
+        the same link and <b>wrong target</b> otherwise. Every true link the model did not predict is <b>missed</b>. This gives
+        282,051 correct, 11,606 wrong-target and 36,627 missed links. We use every link of every predicted sequence, with no sampling.</p>
+      <div class="why">
+        <p><b>Why F1 and not "accuracy".</b> In Milestone 1 we defined accuracy as the share of predicted links that are correct
+          (precision). On the real data that made LAP look close to perfect (0.99), because precision ignores the 7,103 links LAP never made.
+          F1 combines precision with recall (the share of true links found), so a model that skips hard cases is no longer rewarded.</p>
+      </div>
+      <p>A Python script (<code>prep/build_data.py</code>) reads the raw zips and writes a summary table plus one small file per
+        sequence × model. Each file is 0.14–0.71 MB, so View 3 loads one file per click instead of the 26.5 MB file of every link.
+        Before writing anything, the script checks its results against the numbers in our Milestone 2 report, including all 36 heatmap values.</p>
+    </section>
+
+    <!-- 2 -->
+    <section id="m1">
+      <h2><span class="num">2</span>Milestone 1: sketches and alternatives</h2>
+      <p class="sub">Placeholder data, models still called A, B and C.</p>
+      <p>From the start we planned three views on one screen, read left to right in the order of Shneiderman's mantra: an overview by
+        cell line, a sequence × model grid to zoom and filter, and a detail view of individual links. A model selector and one fixed hue
+        per model (blue, green, pink) were meant to tie the views together. Both choices survived to the end.</p>
+      <figure>
+        <img src="img/m1_dashboard.png" alt="Milestone 1 dashboard prototype with grouped bars, a heatmap and a trajectory sketch" loading="lazy" width="1600" height="900">
+        <figcaption><b>Milestone 1 prototype.</b> Overview → zoom &amp; filter → details, with the same model colours in every view.</figcaption>
+      </figure>
+
+      <h3>View 1 · Grouped bars of accuracy</h3>
+      <span class="credit">Designed by <b>Aditya Choudhury</b></span>
+      <p>We chose bars because length on a common scale is the most accurate channel for comparing values, and grouping by cell line
+        answers "which model is best here?" directly. We sketched the same placeholder values three other ways and dropped them all.
+        A table makes you compare 12 numbers one by one. A line chart implies an order between cell lines that does not exist. A radar chart
+        relies on radial lengths and areas that are hard to judge.</p>
+      <div class="grid2">
+        <figure><img src="img/m1_view1.png" alt="Milestone 1 View 1 sketch: grouped bars of accuracy by cell line" loading="lazy" width="1600" height="900">
+          <figcaption><span class="tag kept">Chosen</span>Grouped bars, 0–100% accuracy.</figcaption></figure>
+        <figure><img src="img/m1_view1_alternatives.png" alt="Three discarded alternatives for View 1: a table, a line chart and a radar chart" loading="lazy" width="1600" height="900">
+          <figcaption><span class="tag fail">Discarded</span>Table, line chart and radar chart.</figcaption></figure>
+      </div>
+
+      <h3>View 2 · Sequence × model heatmap</h3>
+      <span class="credit">Designed by <b>Akshay Mhetre</b></span>
+      <p>The heatmap gives every sequence × model pair its own large cell. A cell is easy to read and easy to click, so it can drive View 3.
+        Colour lightness shows the score, and the hues stay on the column headers only, so a blue cell is never mistaken for "LAP". The dot plot
+        was the strong runner-up. We dropped it because dots overlap when models score alike, and there is no single target to click for a pair.
+        Parallel coordinates tangle with 12 lines and give lines a slope between unordered models.</p>
+      <div class="grid2">
+        <figure><img src="img/m1_view2.png" alt="Milestone 1 View 2 sketch: grey heatmap of sequences by model" loading="lazy" width="1600" height="900">
+          <figcaption><span class="tag kept">Chosen</span>Heatmap, grey ramp fixed at 60–100%.</figcaption></figure>
+        <figure><img src="img/m1_view2_alternatives.png" alt="Two discarded alternatives for View 2: a dot plot and parallel coordinates" loading="lazy" width="1600" height="900">
+          <figcaption><span class="tag fail">Discarded</span>Dot plot per sequence and lines across models.</figcaption></figure>
+      </div>
+
+      <h3>View 3 · Trajectory plot of wrong links</h3>
+      <span class="credit">Designed by <b>Daniel Shull</b></span>
+      <p>The detail view draws cells at their pixel positions and the model's links between frames, so a biologist can see <em>where</em>
+        a model goes wrong. For example, a wrong link might jump to a neighbouring cell while the true link goes elsewhere. Hovering a wrong link gives the
+        frame, the source, the predicted target and the true target.</p>
+      <figure><img src="img/m1_view3.png" alt="Milestone 1 View 3 sketch: cell positions with green correct links, a red dashed wrong link and a grey ground-truth link" loading="lazy" width="1600" height="900">
+        <figcaption><b>View 3 sketch.</b> Correct links in green, the wrong link in red, and its ground-truth link in grey.</figcaption></figure>
+    </section>
+
+    <!-- 3 -->
+    <section id="m2">
+      <h2><span class="num">3</span>Milestone 2: what broke with real data</h2>
+      <p class="sub">Each view rebuilt in Python from all 330,284 links. We kept the failed versions on purpose.</p>
+      <p>Real data changed the design more than any sketch review. The scores fell in a narrow band (F1 0.78–0.98), the main difference
+        between models turned out to be <em>missed</em> links rather than wrong ones, and a single sequence holds thousands of errors.
+        Every view had to change.</p>
+
+      <h3>View 1 · From bars of precision to a dot plot of F1</h3>
+      <span class="credit">Designed by <b>Aditya Choudhury</b></span>
+      <div class="grid2">
+        <figure><img src="img/v1_fail1.png" alt="Failed View 1: grouped bars of precision, all between 85 and 100 percent" loading="lazy" width="1600" height="900">
+          <figcaption><span class="tag fail">Failed 1</span>The Milestone 1 bars with real precision. All 12 bars land between 85% and 100%, and LAP
+            looks perfect because precision ignores missed links.</figcaption></figure>
+        <figure><img src="img/v1_fail2.png" alt="Failed View 1: 36 bars of F1, one group per sequence, on an axis starting at 0.75" loading="lazy" width="1600" height="900">
+          <figcaption><span class="tag fail">Failed 2</span>F1 per sequence as 36 bars. Comparing a model across sequences means scanning the
+            whole chart, and a cut axis makes 0.80 look a quarter of 0.95.</figcaption></figure>
+      </div>
+      <figure><img src="img/v1_m2_final.png" alt="Milestone 2 View 1: dot plot of F1 by cell line and stacked bars of error types" loading="lazy" width="1600" height="858">
+        <figcaption><span class="tag kept">Revised</span><b>Dot plot of F1 plus an error breakdown.</b> Points encode value by position, so a
+          zoomed axis stays honest. Hollow points keep all 36 sequence values visible without 36 bars. The new error panel shows the
+          finding the bars hid: no model ever links a cell division.</figcaption></figure>
+
+      <h3>View 2 · Fitting the grey ramp to the data</h3>
+      <span class="credit">Designed by <b>Akshay Mhetre</b></span>
+      <div class="grid3">
+        <figure><img src="img/v2_fail1.png" alt="Failed View 2: heatmap on a 60 to 100 percent grey scale where most cells look alike" loading="lazy" width="1240" height="1280">
+          <figcaption><span class="tag fail">Failed 1</span>Scale fixed at 60–100%. Real values only cover 78–98%, so most cells are the same pale grey.</figcaption></figure>
+        <figure><img src="img/v2_fail2.png" alt="Failed View 2: dot plot with one row per sequence and overlapping dots" loading="lazy" width="1400" height="1080">
+          <figcaption><span class="tag fail">Failed 2</span>The dot-plot runner-up. On 6 of 12 rows the three dots touch, and there is still nothing to click.</figcaption></figure>
+        <figure><img src="img/v2_fail3.png" alt="Failed View 2: one line per sequence across the three models, with overlapping end labels" loading="lazy" width="1600" height="1000">
+          <figcaption><span class="tag fail">Failed 3</span>Lines across models. Five lines end within 0.003 of each other and their labels overprint.</figcaption></figure>
+      </div>
+      <figure><img src="img/v2_m2_final.png" alt="Milestone 2 View 2: heatmap with a grey ramp over 0.78 to 0.98 and a bar of true links per sequence" loading="lazy" width="1600" height="1405">
+        <figcaption><span class="tag kept">Revised</span><b>Same heatmap, ramp stretched to 0.78–0.98 and flipped so dark = more links lost.</b>
+          F1 is printed in every cell, and a bar per row shows how many true links stand behind it.</figcaption></figure>
+
+      <h3>View 3 · From "every error" to a window with a timeline</h3>
+      <span class="credit">Designed by <b>Daniel Shull</b> · version 3 revision by Aditya Choudhury</span>
+      <div class="grid3">
+        <figure><img src="img/v3_fail1.png" alt="Failed View 3: every error of the sequence drawn at once, an unreadable tangle" loading="lazy" width="1600" height="953">
+          <figcaption><span class="tag fail">Failed 1</span>All ~3,000 errors of the sequence at once. No single link can be followed.</figcaption></figure>
+        <figure><img src="img/v3_fail2.png" alt="Failed View 3: one missed link shown alone with nearby cells" loading="lazy" width="1550" height="988">
+          <figcaption><span class="tag fail">Failed 2</span>One error at a time. Readable, but stepping through 2,980 errors loses the frame-to-frame context.</figcaption></figure>
+        <figure><img src="img/v3_fail3.png" alt="Failed View 3: four transitions with green and red links, opening on the first four transitions" loading="lazy" width="1536" height="1003">
+          <figcaption><span class="tag fail">Failed 3</span>Four transitions, but opening on transitions 1–4. That stretch is untypical (recall 0.18 against 0.69 overall),
+            and green and red cannot be told apart by red-green colour-blind viewers.</figcaption></figure>
+      </div>
+      <figure><img src="img/v3_m2_final.png" alt="Milestone 2 View 3: four transitions with grey and orange links and an error timeline below" loading="lazy" width="1600" height="1101">
+        <figcaption><span class="tag kept">Revised</span><b>A four-transition window that opens on a typical stretch (35–38), plus a timeline of every transition.</b>
+          Correct links are dark grey and wrong links dashed orange, the same orange as in View 1. The timeline shows where the window
+          sits and where errors spike.</figcaption></figure>
+
+      <h3>The Milestone 2 dashboard</h3>
+      <div class="grid2">
+        <figure><img src="img/m2_dashboard.png" alt="Milestone 2 dashboard figure assembled from three separate Python images" loading="lazy" width="1600" height="1737"></figure>
+        <div>
+          <p>We put the three Python figures together into one dashboard image. View 1 sits across the top, with View 2 and View 3 below it.
+            It worked as a figure, but it was taller than a screen. Two parts of its interaction plan were also progressive:</p>
+          <ul>
+            <li>View 3 would start empty, with the message "Select a sequence in View 2".</li>
+            <li>Clicking a cell line would filter View 2 down to that cell line's rows.</li>
+          </ul>
+          <p>The instructor's feedback pointed at exactly these two problems.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section id="redesign">
+      <h2><span class="num">4</span>Feedback and the one-screen redesign</h2>
+      <blockquote>"The final dashboard must have all figures visualized on the screen at the same time (no progressive views). Simplify so
+        everything shows on screen at once. You can still have a progressive type of interaction, but don't design assuming a view will
+        change completely from one mode to another."
+        <cite>Dr. Iuricich, feedback on Milestone 2</cite></blockquote>
+      <p>We turned the feedback into three rules for the D3 version and checked every design decision against them:</p>
+      <ul>
+        <li><b>Everything fits one screen</b> at 1440×900 with no scrolling, and still looks right at 1920×1080. Text stays at 11 px or larger.</li>
+        <li><b>No view is ever empty.</b></li>
+        <li><b>Interactions highlight or update, and never hide a view or change it into a different kind of view.</b></li>
+      </ul>
+
+      <div class="why">
+        <p><b>View 3 opens on the weakest cell in the heatmap.</b> Instead of an empty panel, the dashboard loads U87 · FLD_2 · LineageMapper (F1 0.78)
+          at transitions 35–38. The first screen already tells the whole story from overview to detail, and its orange outline in View 2 shows where the detail comes from.</p>
+        <p><b>Clicking a cell line outlines it rather than filtering.</b> The other nine heatmap rows stay at full strength, so comparing U87 with MCF10A
+          is still one glance.</p>
+        <p><b>Choosing a model fades the others and updates View 3 in place.</b> View 3 keeps its sequence and window and redraws with the new model's
+          links. Links that both models share stay where they are, so the differences are what changes.</p>
+        <p><b>Every view was shrunk without dropping content.</b></p>
+          <ul>
+            <li>View 1's two panels are stacked in a narrow column.</li>
+            <li>The heatmap's cell-line names became group headings, which frees enough width for three model columns.</li>
+            <li>View 3's summary box became a one-line strip that also works as its legend.</li>
+            <li>The link plot is sized to the image's aspect ratio, and the timeline gets the leftover height.</li>
+          </ul>
+      </div>
+
+      <div class="grid2">
+        <figure><img src="img/m2_dashboard.png" alt="Milestone 2 dashboard image, taller than one screen" loading="lazy" width="1600" height="1737">
+          <figcaption><span class="tag before">Before</span>Milestone 2: three separate images stacked, taller than a screen, and View 3 planned to start empty.</figcaption></figure>
+        <figure><img src="img/d3_dashboard.png" alt="D3 dashboard with three columns on one screen" loading="lazy" width="1440" height="900">
+          <figcaption><span class="tag kept">After</span>D3: three columns on one 1440×900 screen, read left to right. View 3 is filled from the first frame.</figcaption></figure>
+      </div>
+
+      <table>
+        <tr><th>Action</th><th>What changes</th></tr>
+        <tr><td>Model selector, or a model in View 1</td><td>That model is highlighted in all views and the others fade. View 3 switches to that model for the same sequence and window.</td></tr>
+        <tr><td>Click a cell-line row (View 1)</td><td>That cell line's rows are outlined in Views 1 and 2. Click again to clear.</td></tr>
+        <tr><td>Hover a marker, bar or heatmap cell</td><td>Tooltip with F1, precision, recall, wrong and missed counts. Hovering a heatmap cell also rings that sequence's marker in View 1.</td></tr>
+        <tr><td>Click a heatmap cell</td><td>Orange outline on the cell, and View 3 loads that sequence and model.</td></tr>
+        <tr><td>Previous / Next, ← →, click the timeline</td><td>The four-transition window moves, and the plot, counts and timeline shading update.</td></tr>
+        <tr><td>Hover a link (View 3)</td><td>Tooltip with status, frame, source, predicted and true target, and track. A wrong link's true link is drawn and the rest dims.</td></tr>
+      </table>
+    </section>
+
+    <!-- 5 -->
+    <section id="d3">
+      <h2><span class="num">5</span>Building it in D3</h2>
+      <p>The site is plain HTML, CSS and JavaScript with D3 v7 and no build step, so it runs on GitHub Pages as is. There is one file per view, plus
+        <code>main.js</code>, which holds the one shared state object: selected model, outlined cell line, sequence and model shown in View 3, window start, and hovered cell.</p>
+      <ul>
+        <li><b>Each view has a draw step and an update step.</b> <code>draw()</code> lays the view out from its box size. <code>update()</code> applies the state with 300 ms transitions.
+          A ResizeObserver redraws when any box changes size.</li>
+        <li><b>View 3 fetches only what it shows.</b> It loads one sequence × model file per click and caches it, so revisiting a cell is instant.</li>
+        <li><b>All layout decisions were tested with screenshots.</b> A headless browser took screenshots at 1440×900, 1920×1080 and 1366×768 after every stage and checked the console for errors.
+          The screenshots caught problems we would have missed by reading code:
+          <ul>
+            <li>the heatmap's colour chips sat under the subtitle instead of on the column headers</li>
+            <li>the legend's end labels were clipped</li>
+            <li>the timeline was sized before the summary text arrived, so the page ended up 4 px taller than the screen</li>
+          </ul></li>
+      </ul>
+
+      <h3>Before and after, view by view</h3>
+      <p>The designs kept their Milestone 2 encodings and colours. What changed is the space they get and how they respond to the other views.</p>
+      <div class="row grid2">
+        <figure><img src="img/v1_m2_final.png" alt="Milestone 2 View 1 in Python" loading="lazy" width="1600" height="858">
+          <figcaption><span class="tag before">Before</span>View 1 in Python: two panels side by side, direct labels on the top row.</figcaption></figure>
+        <figure style="max-width:300px"><img src="img/d3_view1.png" alt="D3 View 1 in a narrow column" loading="lazy" width="376" height="817">
+          <figcaption><span class="tag kept">After</span>D3: panels stacked, and the pooled F1 values moved into a clickable legend that doubles as a model picker.</figcaption></figure>
+      </div>
+      <div class="row grid2">
+        <figure><img src="img/v2_m2_final.png" alt="Milestone 2 View 2 in Python" loading="lazy" width="1600" height="1405">
+          <figcaption><span class="tag before">Before</span>View 2 in Python.</figcaption></figure>
+        <figure style="max-width:290px"><img src="img/d3_view2.png" alt="D3 View 2 heatmap with group headings" loading="lazy" width="348" height="817">
+          <figcaption><span class="tag kept">After</span>D3: cell lines as group headings, a colour chip on each column, and the legend directly under the cells.</figcaption></figure>
+      </div>
+      <div class="row grid2">
+        <figure><img src="img/v3_m2_final.png" alt="Milestone 2 View 3 in Python" loading="lazy" width="1600" height="1101">
+          <figcaption><span class="tag before">Before</span>View 3 in Python, with the summary box and buttons beside the plot.</figcaption></figure>
+        <figure><img src="img/d3_view3.png" alt="D3 View 3 with summary strip, link plot and timeline" loading="lazy" width="668" height="817">
+          <figcaption><span class="tag kept">After</span>D3: summary, legend and buttons in one strip, so the plot takes the full width.</figcaption></figure>
+      </div>
+
+      <h3>The views working together</h3>
+      <div class="grid2">
+        <figure><img src="img/d3_linked.png" alt="Dashboard with LAP highlighted, U87 outlined and a heatmap cell hovered" loading="lazy" width="1440" height="900">
+          <figcaption><b>Linking.</b> LAP is chosen in the selector, so the other models fade and View 3 shows LAP. U87 is outlined from View 1, and hovering
+            the U87 · FLD_4 · Trackastra cell rings its marker in View 1.</figcaption></figure>
+        <figure style="max-width:420px"><img src="img/d3_hover.png" alt="View 3 with a wrong link hovered and its true link drawn" loading="lazy" width="668" height="817">
+          <figcaption><b>Details on demand.</b> Hovering a wrong link dims everything else and draws its true link. Here LineageMapper linked cell 20035
+            to 20038 in frame 35 → 36, but the true next cell is 20040.</figcaption></figure>
+      </div>
+      <div class="grid2">
+        <figure><img src="img/d3_dashboard_1920.png" alt="Dashboard at 1920 by 1080" loading="lazy" width="1600" height="900">
+          <figcaption>At 1920×1080 every view simply gets bigger, and the text steps up to 13 px.</figcaption></figure>
+        <figure><img src="img/d3_dashboard_1366.png" alt="Dashboard at 1366 by 768" loading="lazy" width="1366" height="768">
+          <figcaption>A common laptop size, 1366×768, still fits without scrolling.</figcaption></figure>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section id="insights">
+      <h2><span class="num">6</span>What the dashboard reveals</h2>
+
+      <div class="finding">
+        <h3>LAP is the safe choice everywhere</h3>
+        <p>LAP has the best F1 in every cell line, and its F1 stays between 0.94 and 0.98 on all 12 sequences (pooled 0.96). Its precision is 0.99:
+          when LAP makes a link, it is almost always right.</p>
+      </div>
+
+      <div class="finding">
+        <h3>For the other two models, the cell line matters more than the model</h3>
+        <p>Trackastra and LineageMapper score 0.95–0.97 on MCF10A and MDA-MB-231 but drop to 0.78–0.88 on HEK293T and U87. All three U87 sequences are
+          dark for both models in the heatmap, so this is a property of the cell line, not of one bad sequence. Sequence size does not explain it:
+          U87 FLD_4 has only 4,820 true links and is weak, while MDA-MB-231 FLD_2 has 13,992 and is strong.</p>
+      </div>
+
+      <div class="finding">
+        <h3>The models fail in different ways</h3>
+        <table>
+          <tr><th>Model</th><th>F1</th><th>Precision</th><th>Recall</th><th>Wrong target</th><th>Missed</th><th>Share of errors that are wrong targets</th></tr>
+          <tr><td><i class="mk lap"></i>LAP</td><td class="n">0.96</td><td class="n">0.99</td><td class="n">0.93</td><td class="n">678</td><td class="n">7,103</td><td class="n">9%</td></tr>
+          <tr><td><i class="mk tra"></i>Trackastra</td><td class="n">0.91</td><td class="n">0.92</td><td class="n">0.89</td><td class="n">7,754</td><td class="n">11,951</td><td class="n">39%</td></tr>
+          <tr><td><i class="mk lm"></i>LineageMapper</td><td class="n">0.90</td><td class="n">0.97</td><td class="n">0.83</td><td class="n">3,174</td><td class="n">17,573</td><td class="n">15%</td></tr>
+        </table>
+        <p>LAP and LineageMapper mostly <em>miss</em> links, and LineageMapper misses the most. Trackastra makes the most wrong links, partly because it
+          proposes 2,235 cell divisions and none of them is real. A wrong link is worse for a biologist than a missed one, because it silently joins two different cells into one track.</p>
+      </div>
+
+      <div class="finding">
+        <h3>No model links a single cell division</h3>
+        <p>All 1,134 division links (567 divisions × two daughters) are missed by all three models. Whichever model a lab picks, divisions and
+          lineages will still need to be annotated by hand.</p>
+      </div>
+
+      <div class="finding">
+        <h3>Errors gather where cells are crowded, except for LAP</h3>
+        <p>In View 3 the orange and dashed links cluster in dense groups of cells, while isolated cells are tracked correctly. To check that this holds beyond
+          one window, we measured how close each cell is to its nearest neighbour in the same frame, across all 12 sequences. The bars show the share of
+          cells with at least one wrong or missed link, by quarter of that distance:</p>
+        <table class="bars">
+          <tr><th>Nearest neighbour</th><th>LAP · Trackastra · LineageMapper</th></tr>
+          <tr><td>13–51 px (crowded)</td><td>
+            <div class="bar"><i style="width:21.4%;background:var(--lap)"></i><span>7.8%</span></div>
+            <div class="bar"><i style="width:62.9%;background:var(--tra)"></i><span>22.9%</span></div>
+            <div class="bar"><i style="width:80%;background:var(--lm)"></i><span>29.1%</span></div></td></tr>
+          <tr><td>51–71 px</td><td>
+            <div class="bar"><i style="width:17.9%;background:var(--lap)"></i><span>6.5%</span></div>
+            <div class="bar"><i style="width:38.5%;background:var(--tra)"></i><span>14.0%</span></div>
+            <div class="bar"><i style="width:48.1%;background:var(--lm)"></i><span>17.5%</span></div></td></tr>
+          <tr><td>71–103 px</td><td>
+            <div class="bar"><i style="width:13.2%;background:var(--lap)"></i><span>4.8%</span></div>
+            <div class="bar"><i style="width:20.6%;background:var(--tra)"></i><span>7.5%</span></div>
+            <div class="bar"><i style="width:26.7%;background:var(--lm)"></i><span>9.7%</span></div></td></tr>
+          <tr><td>over 103 px (isolated)</td><td>
+            <div class="bar"><i style="width:15.7%;background:var(--lap)"></i><span>5.7%</span></div>
+            <div class="bar"><i style="width:16.8%;background:var(--tra)"></i><span>6.1%</span></div>
+            <div class="bar"><i style="width:25.3%;background:var(--lm)"></i><span>9.2%</span></div></td></tr>
+        </table>
+        <p>Trackastra's and LineageMapper's error rates rise three- to fourfold from isolated to crowded cells, while LAP's stays between 5% and 8%.
+          (Computed from the link files with <code>prep/crowding.py</code>.) This is the
+          most practical result for a new experiment: the denser the culture, the bigger LAP's advantage.</p>
+      </div>
+
+      <div class="finding">
+        <h3>Same cells, different models</h3>
+        <p>Switching the model in View 3 keeps the sequence and window, so two models can be compared link by link. On U87 · FLD_2, transitions
+          35–38, LAP gets 102 links right with 2 wrong and 7 missed. LineageMapper gets 79 right, with 11 wrong and 30 missed.</p>
+        <div class="grid2">
+          <figure><img src="img/d3_v3_lap.png" alt="View 3 with LAP: almost all links solid" loading="lazy" width="668" height="817">
+            <figcaption><i class="mk lap"></i><b>LAP</b>: 102 correct · 2 wrong · 7 missed.</figcaption></figure>
+          <figure><img src="img/d3_v3_lm.png" alt="View 3 with LineageMapper: many dashed missed and orange wrong links" loading="lazy" width="668" height="817">
+            <figcaption><i class="mk lm"></i><b>LineageMapper</b>: 79 correct · 11 wrong · 30 missed.</figcaption></figure>
+        </div>
+      </div>
+
+      <div class="finding">
+        <h3>Errors happen almost everywhere, and spike at the end</h3>
+        <div class="grid2">
+          <div>
+            <p>The error timeline for U87 · FLD_2 · LineageMapper has errors in 286 of its 288 transitions, with a median of 9 per transition.
+              The highest spikes all fall in the last 20 transitions (273–282). Clicking a spike opens it: transitions 273–276 have
+              13 wrong and 52 missed links against 49 correct.</p>
+            <p>A biologist can use this to judge whether a model's failures are spread out, or tied to a moment in the experiment
+              when the culture becomes dense.</p>
+          </div>
+          <figure><img src="img/d3_timeline_jump.png" alt="View 3 after clicking a late spike in the timeline" loading="lazy" width="668" height="817">
+            <figcaption>The window moved to the late spike (transitions 273–276) by clicking the timeline.</figcaption></figure>
+        </div>
+      </div>
+
+      <div class="why">
+        <p><b>Recommendation.</b> For a new experiment, choose <b>LAP</b>. Avoid Trackastra and LineageMapper for dense cultures and for cell lines
+          like U87 and HEK293T. For any model, check cell divisions by hand.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Original view designs: View 1 and data processing by Aditya Choudhury, View 2 by Akshay Mhetre, View 3 by Daniel Shull.
+      Data: CPSC 4030/6030 project dataset (ground-truth tracks and LAP, Trackastra and LineageMapper predictions).
+      Built with <a href="https://d3js.org">D3.js</a> v7. <a href="index.html">Back to the dashboard</a>.</p>
+  </footer>
+</body>
+</html>

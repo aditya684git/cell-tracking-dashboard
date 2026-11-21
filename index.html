@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Choosing a Cell-Tracking Model</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Which cell-tracking model should a biologist trust?</h1>
+      <p class="subtitle">LAP, Trackastra and LineageMapper compared with expert ground truth · 4 cell lines · 12 sequences · 330,284 labelled links</p>
+    </div>
+    <div class="selector">
+      <span class="selector-label">Model</span>
+      <div id="model-selector" class="seg" role="group" aria-label="Highlight a model"></div>
+      <a class="pb-link" href="process.html">Process book</a>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="panel" id="v1">
+      <div class="panel-head">
+        <h2><span class="step">1</span>Overview</h2>
+        <span class="hint">click a row or a model</span>
+      </div>
+      <h3>Which model tracks best, per cell line?</h3>
+      <p class="sub">F1 score · filled = pooled · hollow = one sequence</p>
+      <div class="legend" id="v1-legend"></div>
+      <div class="chart" id="v1-dots"></div>
+      <h3 class="second">What kind of mistakes?</h3>
+      <p class="sub">All 12 sequences · no model links a single cell division</p>
+      <div class="chart" id="v1-bars"></div>
+      <div class="legend" id="v1-bar-legend"></div>
+    </section>
+
+    <section class="panel" id="v2">
+      <div class="panel-head">
+        <h2><span class="step">2</span>Zoom &amp; filter</h2>
+        <span class="hint">click a cell to open it</span>
+      </div>
+      <h3>Where does each model struggle?</h3>
+      <p class="sub">F1 per sequence and model · darker = more links lost</p>
+      <div class="chart" id="v2-heat"></div>
+    </section>
+
+    <section class="panel" id="v3">
+      <div class="panel-head">
+        <h2><span class="step">3</span>Details</h2>
+        <span class="hint">hover a link · click the timeline · ← → keys</span>
+      </div>
+      <div class="v3-title">
+        <h3 id="v3-name"></h3>
+        <span id="v3-score" class="sub"></span>
+      </div>
+      <div class="v3-bar">
+        <div id="v3-summary"></div>
+        <div class="nav">
+          <button id="v3-prev" type="button">‹ Previous</button>
+          <button id="v3-next" type="button">Next ›</button>
+        </div>
+      </div>
+      <div class="chart" id="v3-plot"></div>
+      <div class="v3-tl-head">
+        <span id="v3-tl-title"></span>
+        <span class="legend inline">
+          <span class="key"><i class="sw" style="background:#A7AFB8"></i>Missed</span>
+          <span class="key"><i class="sw" style="background:#D55E00"></i>Wrong target</span>
+        </span>
+      </div>
+      <div class="chart" id="v3-timeline"></div>
+    </section>
+  </main>
+
+  <div id="tooltip" role="tooltip"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/view1.js"></script>
+  <script src="js/view2.js"></script>
+  <script src="js/view3.js"></script>
+  <script>start();</script>
+</body>
+</html>
